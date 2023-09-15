@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - Vid Learn{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<header class="hero bg-primary text-white text-center py-5">
+    <div class="container">
+        <h1 class="display-4">Welcome to Vid Learn Learning Platform</h1>
+        <p class="lead">Start your Learning journey today!</p>
+        <a class="btn btn-light btn-lg" href="{{ url_for('register') }}" role="button">Get Started</a>
+    </div>
+</header>
+
+<!-- About Section -->
+<section class="mt-4">
+    <div class="container">
+        <h2>About Us</h2>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed lacinia lorem in metus bibendum, in laoreet odio varius.</p>
+    </div>
+</section>
+{% endblock %}

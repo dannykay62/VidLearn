@@ -1,0 +1,693 @@
+import os
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField, validators
+from wtforms.validators import DataRequired, Email, EqualTo
+from werkzeug.security import generate_password_hash, check_password_hash
+#from flask_uploads import UploadSet, configure_uploads, All
+from email_validator import validate_email, EmailNotValidError
+from werkzeug.utils import secure_filename
+from datetime import datetime, timedelta
+
+from sqlalchemy.sql import func
+
+app = Flask(__name__)
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SECRET_KEY'] = ':hp7weDA\DW(<NaM!<83%buX'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'db.sqlite')
+
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(255), unique=True, nullable=False)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(50))
+
+    subscriptions = db.relationship('Subscription', backref='user', lazy=True)
+    progress_tracking = db.relationship('ProgressTracking', backref='user', lazy=True)
+    comments_ratings = db.relationship('CommentRating', backref='user', lazy=True)
+
+class Course(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    instructor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    price = db.Column(db.Float(precision=2))
+
+    instructor = db.relationship('User', backref='instructor_courses', foreign_keys=[instructor_id], lazy=True)
+    videos = db.relationship('Video', backref='course', lazy=True)
+    subscriptions = db.relationship('Subscription', backref='course', lazy=True)
+    categories = db.relationship('CategoryTag', secondary='course_categories', backref='courses', lazy=True)
+
+class Video(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    video_url = db.Column(db.Text)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
+    youtube_video_id = db.Column(db.String(255), nullable=False) # To store the YouTube video ID
+
+
+    course = db.relationship('Course', back_populates='videos')
+    categories = db.relationship('CategoryTag', secondary='video_tags', backref='videos', lazy=True)
+
+class Subscription(db.Model):
+    # __tablename__ = 'subscriptions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'))
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+
+    # # relationships
+    # user = db.relationship('User', backref='subscriptions')
+    # course = db.relationship('course', backref='subscribers')
+"""
+class ProgressTracking(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    video_id = db.Column(db.Integer, db.ForeignKey('video.id'), nullable=False)
+    timestamp = db.Column(db.TIMESTAMP, nullable=False)
+"""
+"""
+class CommentRating(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'))
+    video_id = db.Column(db.Integer, db.ForeignKey('video.id'))
+    comment_text = db.Column(db.Text)
+    rating = db.Column(db.Integer)
+"""
+    
+class Instructor(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    bio = db.Column(db.Text)
+    contact_info = db.Column(db.Text)
+
+class CategoryTag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+
+class CourseCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('category_tag.id'), nullable=False)
+
+class VideoTag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    video_id = db.Column(db.Integer, db.ForeignKey('video.id'), nullable=False)
+    tag_id = db.Column(db.Integer, db.ForeignKey('category_tag.id'), nullable=False)
+
+
+
+class RegistrationForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Register')
+
+class ProgressTracking(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    video_id = db.Column(db.Integer, db.ForeignKey('video.id'), nullable=False)
+    timestamp = db.Column(db.TIMESTAMP, server_default=func.now(), nullable=False)
+
+    # Define Relationship
+    user = db.relationship('User', backref='progress_tracking')
+    video = db.relationship('Video', backref='progress_tracking')
+
+class CommentRating(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'))
+    video_id = db.Column(db.Integer, db.ForeignKey('video.id'))
+    comment_text = db.Column(db.Text)
+    rating = db.Column(db.Integer)
+    response_text = db.Column(db.Text)
+
+    # Define relationship
+    user = db.relationship('User', backref='comments_ratings')
+    course = db.relationship('Course', backref='comments_ratings')
+    video = db.relationship('Video', backref='comments_ratings')
+
+
+
+# Define routes
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+# define route for dashboard
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    return render_template('dashboard.html')
+
+# Define route for course to view all courses
+@app.route('/courses')
+def courses():
+    course_list = Course.query.all()
+    return render_template('courses.html',courses=course_list)
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    # create an instance of the RegistrationForm
+    form = RegistrationForm()
+    
+    
+    if form.validate_on_submit():
+        # Form validation passed
+        username = form.username.data
+        email = form.email.data
+        password = form.password.data
+        # Check if the username or email already exists in the database
+        existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
+        if existing_user:
+            flash('Username or email already exists. Please choose another.', 'danger')
+        else:
+            # Create a new user and hash the password
+            new_user = User(username=username, email=email, password_hash=generate_password_hash(password))
+            db.session.add(new_user)
+            db.session.commit()
+            flash('Registration successful. You can now log in.', 'success')
+            return redirect(url_for('login'))
+    # If the form is not submitted or validation failed, render the registration form
+    return render_template('register.html', form=form)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard')) # redirect logged in users to the dashboard
+    
+    # create an instance of the LoginForm
+    form = LoginForm()
+
+    if form.validate_on_submit():
+        # Form validation passed
+        username = form.username.data
+        password = form.password.data
+
+        user =User.query.filter_by(username=username).first()
+        if user and check_password_hash(user,password):
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Login failed. Please check your credentials.', 'danger')
+    # If the form is not submitted or validation failed, render the login form
+    return render_template('login.html', form=form)
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.orm.get('password')
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Login failed. Please check your credentials.', 'danger')
+    return render_template('login.html')
+
+
+
+
+@app.route('/courses/<int:course_id>')
+def course_details(course_id):
+    course = Course.query.get(course_id)
+    if not course:
+        flash('Course not found.', 'danger')
+        return redirect(url_for('courses'))
+    return render_template('course_details.html', course=course)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('Logged out successfully', 'success')
+    return redirect(url_for('home'))
+
+@app.route('/create_course', methods=['GET', 'POST'])
+@login_required     # Ensure only authenticated instructors can create courses
+def create_course():
+    if current_user.role != 'instructor':
+        flash('You do not have permission to create courses.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    form = CourseCreationForm()     # Create a form for course creation
+    if form.validate_on_submit():
+        # Create a new course and save it to the database
+        new_course = Course(
+            title=form.title.data,
+            description=form.description.data,
+            instructor_id=current_user.id,
+            price=form.price.data
+        )
+        db.session.add(new_course)
+        db.session.commit()
+        flash('Course created successfully.', 'success')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('create_course.html', form=form)
+
+
+# Video Upload (For Instructors)
+
+# # Define the allowed file extensions for video uploads
+# videos = UploadSet("videos", All())
+# # Configure the upload set
+# configure_uploads = (app, videos)
+
+# When adding or editing a course or video, allow the user to associate categories and tags with it
+
+@app.route('/upload_video/<int:course_id>',methods=['GET', 'POST'])
+@login_required
+def upload_video(course_id):
+    # Check if the user is an instructor and the course belongs to them
+    course = Course.query.get(course_id)
+    if not course or course.instructor_id != current_user.id:
+        flash('You do not have the permission to upload videos for this course', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        video_url = request.form.get('video_url')
+
+        # validate the youtube URL
+        if not video_url:
+            flash('Video URL is not required.', 'danger')
+        else:
+            video_id = extract_youtube_video_id(video_url)
+            if not video_id:
+                flash('Invalid YouTube URL.', 'danger')
+            else:
+                # Store the YouTube video ID in the database
+                new_video = Video(
+                    title=request.form.get('title'),
+                    description=request.form.get('description'),
+                    youtube_video_id=video_id,
+                    course_id=course_id
+                )
+                db.session.add(new_video)
+                db.session.commit()
+                flash('Video uploaded successfully.', 'success')
+                return redirect(url_for('course_details', course_id=course_id))
+    return render_template('upload_video.html', course=course)
+
+
+
+# Subscription Management (For Users to subscribe and display courses sunscribed for) 
+@app.route('/subscribe/<int:course_id>', methods=['POST'])
+@login_required
+def subscribe(course_id):
+    course = Course.query.get(course_id)
+    if not course:
+        flash('Course not found', 'danger')
+        return redirect(url_for('courses'))
+    
+    # Check if the user is not the course instructor and is not already subscribed
+    if course.instructor_id == current_user.id or Subscription.query.filter_by(user_id=current_user.id, course_id=course.id).first():
+        flash('You can not subscribe to this course.', 'danger')
+        return redirect(url_for('courses'))
+    
+    #  Create a new subscription for the user
+    new_subscription = Subscription(user_id=current_user.id, course_id=course_id, start_date=datetime.now(), end_date=datetime.now() + timedelta(days=30)) # end date can be modified later
+    db.session.add(new_subscription)
+    db.session.commit()
+    flash('Subscribed to the course successfully.', 'success')
+    return redirect(url_for('dashboard'))
+
+@app.route('/subscription')
+@login_required
+def subscriptions():
+    user_subscriptions = Subscription.query.filter_by(user_id=current_user.id).all()
+    return render_template('subscriptions.html', user_subscriptions=user_subscriptions)
+
+# Video Playback where users can watch course videos
+# @app.route('/play_video/<int:video_id>')
+# @login_required
+"""def play_video(video_id):
+    video = video.query.get(video_id)
+    if not video:
+        flash('Video not found', 'danger')
+        return redirect(url_for('courses'))
+    
+    # Check if the user is subscribed to the course that contains this video
+    subscription = Subscription.query.filter_by(user_id=current_user.id, course_id=video.course_id).first()
+    if not subscription:
+        flash('You must subscribe to this course to access this video.', 'danger')
+        return redirect(url_for('course_details', course_id=video.course_id))
+    
+    # TODO
+    # Implement video streaming logic here, possibly using Flask-Video-Streaming
+    # to serve the video to the user
+    return render_template('play_video.html', video=video)
+"""
+
+# Store the YouTube video ID instead of the video URL
+# Extract the video ID from a YouTube URL
+def extract_youtube_video_id(url):
+    # Extract the _video ID from a YouTube URL
+    video_id = None
+    if 'youtube.com/watch' in url:
+        video_id = url.split('v=')[1]
+        ampersand_pos = video_id.find('&')
+        if ampersand_pos != -1:
+            video_id = video_id[:ampersand_pos]
+    elif 'youtu.be/' in url:
+        video_id = url.split('youtu.be/')[1]
+    return video_id
+
+#  playing YouTube videos, use the YouTube video ID to embed the video using an iframe
+@app.route('/play_video/<int:video_id>')
+@login_required
+def play_video(video_id):
+    video = Video.query.get(video_id)
+    if not video:
+        flash('Video not found.', 'danger')
+        return redirect(url_for('courses'))
+    
+    # Check if the user is subscribed to the course that contains this video
+    subscription = Subscription.query.filter_by(user_id=current_user.id, course_id=video.course_id).first()
+    if not subscription:
+        flash('You must subscribe to the course to access this video.', 'danger')
+        return redirect(url_for('course_details', course_id=video.course_id))
+    
+    # Check if the user has watched this video before
+    progress = ProgressTracking.query.filter_by(user_id=current_user.id, video_id=video_id).first()
+    if not progress:
+        # Create a new progress tracking record
+        new_progress = ProgressTracking(user_id=current_user.id, video_id=video_id)
+        db.session.add(new_progress)
+        db.session.commit()
+
+    return render_template('play_video.html', video=video, progress=progress)
+
+# Create routes for users to leave comments and ratings for courses and videos
+@app.route('/leave_comment_rating/course/<int:course_id>', methods=['POST'])
+@login_required
+def leave_course_comment_rating(course_id):
+    # Check if the user is subscribed to the course
+    subscription = Subscription.query.filter_by(user_id=current_user.id, course_id=course_id).first()
+    if not subscription:
+        flash('You must subscribe to the course to leave a comment and a rating.', 'danger')
+        return redirect(url_for('course_details', course_id=course_id))
+    
+    comment_text = request.form.get('comment_text')
+    rating = int(request.form.get('rating'))
+
+    # Create a new comment and rating record
+    new_comment_rating = CommentRating(
+        user_id=current_user.id,
+        video_id=course_id,
+        comment_text=comment_text,
+        rating=rating
+    )
+    db.session.add(new_comment_rating)
+    db.session.commit()
+    flash('Comment and rating submitted successfully.', 'success')
+    return redirect(url_for('course_details', course_id=course_id))
+
+@app.route('/leave_comment_rating/video/<int:video_id>', methods=['POST'])
+@login_required
+def leave_video_comment_rating(video_id):
+    # Check if the user is subscribed to the course that contains this video
+    video = Video.query.get(video_id)
+    if not video:
+        flash('Video not found.', 'danger')
+        return redirect(url_for('courses'))
+    
+    subscription = Subscription.query.filter_by(user_id=current_user.id, course_id=video.course_id).first()
+    if not subscription:
+        flash('You must subscribr to the course to leave a comment and rating.' 'danger')
+        return redirect(url_for('course_details', course_id=video.course_id))
+    
+    comment_text = request.form.get('comment_text')
+    rating = int(request.form.get('rating'))
+
+    # Create a new comment and rating record
+    new_comment_rating = CommentRating(
+        user_id=current_user.id,
+        video_id=video_id,
+        comment_text=comment_text,
+        rating=rating
+    )
+    db.session.add(new_comment_rating)
+    db.session.commit()
+    flash('Comment and rating submitted successfully.', 'success')
+    return redirect(url_for('play_video', video_id=video_id))
+
+    
+    
+
+# Allow instructors to manage their courses by adding, editing, and deleting courses
+@app.route('/instructor/add_course', methods=['Get', 'POST'])
+@login_required
+def add_course():
+    if current_user.role != 'instructor':
+        flash('You do not have instructor privileges.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        price = request.form.get('price')
+        # Get selected category IDs from the form
+        category_ids = request.form.getlist('categories')
+
+        new_course = Course(title=title, description=description, price=price, instructor_id=current_user.id)
+
+        # Get selected category IDs from the form
+        for category_id in category_ids:
+            category = CategoryTag.query.get(category_id)
+            if category:
+                new_course.categories.append(category)
+
+        db.session.add(new_course)
+        db.session.commit()
+        flash('Course added successfully.', 'success')
+
+    return render_template('instructor_dashboard.html')
+
+# Create route for instructors to edit the details of their courses
+@app.route('/instructor/edit_course/<int:course_id>', methods=['GET', 'POST'])
+@login_required
+def edit_course(course_id):
+    if current_user.role != 'instructor':
+        flash('You do not have instructor privileges.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    course = Course.query.get(course_id)
+    if not course or course.instructor_id != current_user.id:
+        flash('Course not found or you do not have permission to edit this course.', 'danger')
+        return redirect(url_for('instructor_dashboard'))
+    
+    if request.method == 'POST':
+        course.title = request.form.get('title')
+        course.description = request.form.get('description')
+        course.price = request.form.get('price')
+        db.session.commit()
+        flash('Course updated successfully.', 'success')
+        return redirect(url_for('instructor_dashboard'))
+    return render_template('edit_course.html', course=course)
+
+# route for instructors to delete their courses
+@app.route('/instructor/delete_course/<int:course_id>', methods=['POST'])
+@login_required
+def delete_course(course_id):
+    if current_user.role != 'instructor':
+        flash('You do not have instructor privileges.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    course = Course.query.get(course_id)
+    if not course or course.instructo_id != current_user.id:
+        flash('Course not found or you do not have permission to delete this course.', 'danger')
+    
+    # Delete the course and associated data (videos, subscriptions, comments, ratings)
+    db.session.delete(course)
+    db.session.commit()
+    flash('Course deleted successfully.', 'success')
+    return redirect(url_for('instructor_dashboard'))
+
+# Allow instructors to view the progress of students who have subscribed to their courses
+@app.route('/instructor/course_progress/<int:course_id>')
+@login_required
+def course_progress(course_id):
+    if current_user.role != 'instructor':
+        flash('You do not have instructor privileges.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    course = Course.query.get(course_id)
+    if not course or course.instructor_id != current_user.id:
+        flash('Course not found or you do not permission to access this course.', 'danger')
+        return redirect(url_for('instructor_dashboard'))
+    
+    # Retrieve students who have subscribed to this course and their progress
+    students_progress = ProgressTracking.query.join(User).filter(Subscription.user_id == User.id, Subscription.course_id == course_id).all()
+
+    return render_template('course_progress.html', course=course, students_progress=students_progress)
+
+# Allow instructors to interact with students by responding to their comments and ratings
+@app.route('/instructor/course_comments_ratings/<int:course_id>')
+@login_required
+def course_comments_ratings(course_id):
+    if current_user.role != 'instructor':
+        flash('You do not have instructor privileges.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    course = Course.query.get(course_id)
+    if not course or course.instructor_id != current_user.id:
+        flash('ourse not found or you do not have permission to access this course.', 'danger')
+        return redirect(url_for('instructor_dashboard'))
+    
+    # Retrieve comments and ratings for this course
+    course_comments_ratings = CommentRating.query.filter_by(course_id=course_id).all()
+    return render_template('course_comments_ratings.html', course=course, course_comments_ratings=course_comments_ratings)
+
+# Create a route for instructors to view video comments and ratings associated with a specific video
+@app.route('/instructor/video_comments_ratings/<int:video_id>', methods=['GET', 'POST'])
+@login_required
+def video_comments_ratings(video_id):
+    if current_user.role != 'instructor':
+        flash('You do not have instructor privileges.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    video = Video.query.get(video_id)
+    if not video or video.course.instructor_id != current_user.id:
+        flash('Video not found or you do not have permission to access this video.', 'danger')
+        return redirect(url_for('instructor_dashboard'))
+    
+    # Retrieve comments and ratings for this video
+    video_comments_ratings = CommentRating.query.filter_by(video_id=video_id).all()
+
+    if request.method == 'POST':
+        response_text = request.form.get('response_text')
+        comment_rating_id = request.form.get('comment_rating_id')
+
+        comment_rating = CommentRating.query.get(comment_rating_id)
+        if not comment_rating:
+            flash('Comment or rating not found.', 'danger')
+        else:
+            comment_rating.response_text = response_text
+            db.session.commit()
+            flash('Response saved successfully.', 'success')
+
+    return render_template('video_comments_ratings.html', video=video, video_comments_ratings=video_comments_ratings)
+
+# Search Functionality allows users to search for courses and videos based on keywords or titles
+# using the SQLAlchemy ilike function to perform case-insensitive searches in the database
+@app.route('/search', methods=['GET', 'POST'])
+def search():
+    if request.method == 'POST':
+        search_query = request.form.get('search_query')
+        courses = Course.query.filter(Course.title.ilike(f"%{search_query}%")).all()
+        videos = Video.query.filter(Video.title.ilike(f"%{search_query}%")).all()
+        return render_template('search_result.html', courses=courses, videos=videos)
+    
+    return render_template('search.html')
+
+# Allow users to filter courses and videos by categories or tags
+# Create a route that lists available categories and allows users to select a category to filter the content
+@app.route('/filter_by_category/<int:category_id>')
+def filter_by_category(category_id):
+    category = CategoryTag.query.get(category_id)
+    if not category:
+        flash('Category not found.', 'danger')
+        return redirect(url_for('courses'))
+    
+    filtered_courses = category.courses
+    filtered_videos = category.videos
+
+    return render_template('filtered_courses_and_videos.html', category=category, filtered_courses=filtered_courses, filtered_videos=filtered_videos)
+
+
+# Create views for users to browse content by categories and tags. For example, you can have
+# a route like /categories and /tags, which display a list of available categories and tags
+@app.route('/categories')
+def categories():
+    categories = CategoryTag.query.all()
+    return render_template('categories.html', categories=categories)
+
+@app.route('/tags')
+def tags():
+    tags = CategoryTag.query.all()
+    return render_template('tags.html', tags=tags)
+
+# filter content by selected categories and tags
+@app.route('/category/<int:category_id>')
+def view_by_category(category_id):
+    category =CategoryTag.query.get(category_id)
+    if not category:
+        flash('Category not found.', 'danger')
+        return redirect(url_for('categories'))
+    
+    filtered_courses = category.courses
+    filtered_videos = category.videos
+
+    return render_template('filtered_courses_and_videos.html', category=category, filtered_courses=filtered_courses, filtered_videos=filtered_videos)
+
+@app.route('/tag/<int:tag_id>')
+def view_by_tag(tag_id):
+    tag = CategoryTag.query.get(tag_id)
+    if not tag:
+        flash('Tag not found.', 'danger')
+        return redirect(url_for('tags'))
+    
+    filtered_videos = tag.videos
+
+    return render_template('filtered_videos.html', tag=tag, filtered_videos=filtered_videos)
+
+# route and function for the instructor's dashboard
+@app.route('/instructor_dashboard')
+@login_required
+def instructor_dashboard():
+    if current_user.role != 'instructor':
+        flash('You do not have instructor privileges.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Retrieve the instructor's courses
+    instructor_courses = Course.query.filter_by(instructor_id=current_user.id).all()
+
+    return render_template('instructor_dashboard.html', instructor_courses=instructor_courses)
+
+"""
+# Create dashboard view for instructors where they can see a list of their courses and track student progress
+@app.route('/instructor_dashboard')
+@login_required
+def instructor_dashboard():
+    if current_user.role != 'instructor':
+        flash('You do not have instructor privileges.', 'danger')
+        return redirect(url_for('dashboard'))
+        
+    # Retrieve the instructor's courses
+    instructor_courses = Course.query.filter_by(instructor_id=current_user.id).all()
+        
+    return render_template('instructor_dashboard.html', instructor_courses=instructor_courses)
+"""
+
+    
+
+
+
+
+#db.create_all()
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
+
+
+
+
+
+
+
