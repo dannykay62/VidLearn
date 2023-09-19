@@ -1,5 +1,10 @@
 @charset "UTF-8";
 /*!
+* Start Bootstrap - Modern Business v5.0.7 (https://startbootstrap.com/template-overviews/modern-business)
+* Copyright 2013-2023 Start Bootstrap
+* Licensed under MIT (https://github.com/StartBootstrap/startbootstrap-modern-business/blob/master/LICENSE)
+*/
+/*!
  * Bootstrap  v5.2.3 (https://getbootstrap.com/)
  * Copyright 2011-2022 The Bootstrap Authors
  * Copyright 2011-2022 Twitter, Inc.
@@ -44,7 +49,14 @@
   --bs-warning-rgb: 255, 193, 7;
   --bs-danger-rgb: 220, 53, 69;
   --bs-light-rgb: 248, 249, 250;
+
+  --bs-yellow-rgb-custom: 255, 193, 7;
+
+
   --bs-dark-rgb: 33, 37, 41;
+
+  --bs-custom-rgb: 0, 48, 66;
+
   --bs-white-rgb: 255, 255, 255;
   --bs-black-rgb: 0, 0, 0;
   --bs-body-color-rgb: 33, 37, 41;
@@ -52,7 +64,7 @@
   --bs-font-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --bs-font-monospace: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --bs-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
-  --bs-body-font-family: var(--bs-font-sans-serif);
+  --bs-body-font-family: var('Lato', sans-serif);
   --bs-body-font-size: 1rem;
   --bs-body-font-weight: 400;
   --bs-body-line-height: 1.5;
@@ -483,6 +495,11 @@ progress {
 
 .lead {
   font-size: 1.25rem;
+  font-weight: 300;
+}
+
+.lead-cust {
+  font-size: 2.25rem;
   font-weight: 300;
 }
 
@@ -2855,6 +2872,27 @@ textarea.form-control-lg {
   --bs-btn-disabled-border-color: #0d6efd;
 }
 
+
+
+.btn-primary-custom {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: #ff6900;
+  --bs-btn-border-color: #ff6900;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #ff6900;
+  --bs-btn-hover-border-color: #ff6900;
+  --bs-btn-focus-shadow-rgb: 49, 132, 253;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #be940a;
+  --bs-btn-active-border-color: #be940a;
+  --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: #c5fd0d;
+  --bs-btn-disabled-border-color: #c5fd0d;
+}
+
+
+
 .btn-secondary {
   --bs-btn-color: #fff;
   --bs-btn-bg: #6c757d;
@@ -3599,6 +3637,12 @@ textarea.form-control-lg {
   border-top-right-radius: 0;
 }
 
+
+.logo {
+  font-family: 'Amita', cursive;
+}
+
+
 .nav {
   --bs-nav-link-padding-x: 1rem;
   --bs-nav-link-padding-y: 0.5rem;
@@ -3729,7 +3773,7 @@ textarea.form-control-lg {
   --bs-navbar-active-color: rgba(0, 0, 0, 0.9);
   --bs-navbar-brand-padding-y: 0.3125rem;
   --bs-navbar-brand-margin-end: 1rem;
-  --bs-navbar-brand-font-size: 1.25rem;
+  --bs-navbar-brand-font-size: 2.25rem;
   --bs-navbar-brand-color: rgba(0, 0, 0, 0.9);
   --bs-navbar-brand-hover-color: rgba(0, 0, 0, 0.9);
   --bs-navbar-nav-link-padding-x: 0.5rem;
@@ -3747,6 +3791,8 @@ textarea.form-control-lg {
   align-items: center;
   justify-content: space-between;
   padding: var(--bs-navbar-padding-y) var(--bs-navbar-padding-x);
+
+  font-family: 'Lato', sans-serif;
 }
 .navbar > .container,
 .navbar > .container-fluid,
@@ -4142,6 +4188,13 @@ textarea.form-control-lg {
   --bs-navbar-toggler-border-color: rgba(255, 255, 255, 0.1);
   --bs-navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
 }
+
+
+/* Increase the font size of the navigation links */
+.navbar-nav .nav-link {
+  font-size: 18px;
+}
+
 
 .card {
   --bs-card-spacer-y: 1rem;
@@ -5964,12 +6017,16 @@ textarea.form-control-lg {
 .carousel-caption {
   position: absolute;
   right: 15%;
-  bottom: 1.25rem;
+  /*bottom: 1.25rem;*/
+  top: 1.25rem;
   left: 15%;
-  padding-top: 1.25rem;
+  padding-top: 10.25rem;
   padding-bottom: 1.25rem;
   color: #fff;
   text-align: center;
+  font-size: 1.5rem;
+
+  font-family: 'Lato', sans-serif;
 }
 
 .carousel-dark .carousel-control-prev-icon,
@@ -7002,6 +7059,12 @@ textarea.form-control-lg {
   display: block !important;
 }
 
+.d-block-custom {
+  display: block !important;
+  /* width: 1500px; */
+  height: 600px;
+}
+
 .d-grid {
   display: grid !important;
 }
@@ -7949,6 +8012,10 @@ textarea.form-control-lg {
   font-weight: 400 !important;
 }
 
+.fw-normal-cust {
+  font-weight: 400 !important;
+}
+
 .fw-bold {
   font-weight: 700 !important;
 }
@@ -8149,14 +8216,14 @@ textarea.form-control-lg {
   background-color: rgba(var(--bs-danger-rgb), var(--bs-bg-opacity)) !important;
 }
 
-.bg-light {
+.bg-yellow {
   --bs-bg-opacity: 1;
-  background-color: rgba(var(--bs-light-rgb), var(--bs-bg-opacity)) !important;
+  background-color: rgba(var( --bs-yellow-rgb-custom), var(--bs-bg-opacity)) !important;
 }
 
 .bg-dark {
   --bs-bg-opacity: 1;
-  background-color: rgba(var(--bs-dark-rgb), var(--bs-bg-opacity)) !important;
+  background-color: rgba(var(--bs-custom-rgb), var(--bs-bg-opacity)) !important;
 }
 
 .bg-black {
@@ -9860,6 +9927,13 @@ textarea.form-control-lg {
   .justify-content-xl-start {
     justify-content: flex-start !important;
   }
+
+
+  .justify-content-xl-start-custom {
+    justify-content: center !important;
+  }
+
+
   .justify-content-xl-end {
     justify-content: flex-end !important;
   }
@@ -10270,6 +10344,12 @@ textarea.form-control-lg {
   .text-xl-start {
     text-align: left !important;
   }
+
+  .text-xl-start-cust {
+    text-align: center !important;
+  }
+
+
   .text-xl-end {
     text-align: right !important;
   }

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>All Courses</h2>
+    <div class="row">
+        {% for course in courses %}
+            <div class="col-md-4 mb-4">
+            <div class="card shadow">
+                <img src="{{ courses.image_url }}" class="card-img-top" alt="{{ course.title }}">
+                <div class="card-body">
+                    <h5 class="card-title">{{ course.title }}</h5>
+                    <p class="card-text">{{ course.description }}</p>
+                    <p class="card-text">Price: #{{ course.price }}</p>
+                    <p class="card-text">Instructor: {{ course.instructor.name }}</p>
+                    <a href="{{ url_for('course_details', course_id=course.id) }}" class="btn btn-primary">View Details</Details></a>
+                </div>
+            </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -17,6 +17,7 @@
 
         <form method="POST" enctype="multipart/form-data">
             {{ form.hidden_tag() }}
+
             <div class="form-group">
                 {{ form.category.label(class="form-label") }}
                 {{ form.category(class="form-control") }}
@@ -37,7 +38,55 @@
                 {{ form.image.label(class="form-label") }}
                 {{ form.image(class="form-control-file") }}
             </div>
+
+            <!-- Video Fields -->
+            <div id="video-fields">
+                <h4>Videos</h4>
+                <div class="video-field">
+                    <div class="form-group">
+                        <label for="video_title_0" class="form-label">Video Title</label>
+                        <input type="text" name="video_title_0" id="video_title_0" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="video_description_0" class="form-label">Video Description</label>
+                        <textarea name="video_description_0" id="video_description_0" class="form-control"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="video_url_0" class="form-label">YouTube URL</label>
+                        <input type="text" name="video_url_0" id="video_url_0" class="form-control">
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="btn btn-primary" id="add-video">Add More Video</button>
+
+            <hr>
             <button type="submit" class="btn btn-primary">Create Course</button>
         </form>
     </div>
+
+    <script>
+        $(document).ready(function() {
+            let videoFieldIndex = 0;
+
+            // Clone the video field and append to the video-fields container
+            $("#add-video").click(function() {
+                const videoField = $(".video-field").first().clone();
+                videoFieldIndex++;
+                videoField.find('input').val('');
+                videoField.find('textarea').val('');
+                videoField.find('label').each(function() {
+                    const oldForAttribute = $(this).attr('for');
+                    $(this).attr('for', oldForAttribute.replace(`_${videoFieldIndex - 1}`, `_${videoFieldIndex}`));
+                });
+                videoField.find('input, textarea').each(function() {
+                    const oldNameAttribute = $(this).attr('name');
+                    $(this).attr('name', oldNameAttribute.replace(`_0`, `_${videoFieldIndex}`));
+                    const oldIdAttribute = $(this).attr('id');
+                    $(this).attr('id', oldIdAttribute.replace(`_0`, `_${videoFieldIndex}`));
+                });
+                $("#video-fields").append(videoField);
+            });
+        });
+    </script>
 {% endblock %}

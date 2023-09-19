@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Course Details</h2>
+    <div class="card mb-4">
+        {% if course.image_url %}
+            <img src="{{ course.image_url }}" class="card-img-top" alt="{{ course.title }}">
+        {% else %}
+            <img src="{{ url_for('static', filename='default.jpg') }}" class="card-img-top" alt="Default Image">
+        {% endif %}
+        <div class="card-body">
+            <h5 class="card-title">{{ course.title }}</h5>
+            <p class="card-text">{{ course.description }}</p>
+            <p class="card-text">Price: #{{ course.price }}</p>
+            <p class="card-text">Instructor: {{ course.instructor.name }}</p>
+        </div>
+    </div>
+    <a href="{{ url_for('courses') }}" class="btn btn-primary">Back to Courses</a>
+</div>
+{% endblock %}

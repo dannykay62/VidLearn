@@ -7,7 +7,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired
-from wtforms import StringField, PasswordField, SubmitField, validators, TextAreaField, DecimalField, SelectField
+from wtforms import StringField, PasswordField, SubmitField, validators, TextAreaField, DecimalField, SelectField, FieldList, FormField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, NumberRange
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_uploads import UploadSet, configure_uploads
@@ -52,7 +52,7 @@ class Video(db.Model):
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text)
     video_url = db.Column(db.Text)  # Or an appropriate data type for video URLs
-    course_id = db.Column(db.Integer, db.ForeignKey('course.id'))
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
 
 class Subscription(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -126,6 +126,11 @@ class LoginForm(FlaskForm):
     ])
     submit = SubmitField('Login')
 
+class VideoForm(FlaskForm):
+    title = StringField('Video Title', validators=[DataRequired(), Length(min=5, max=100)])
+    description = TextAreaField('Video Description', validators=[DataRequired(), Length(min=10)])
+    youtube_url = StringField('YouTube Video URL', validators=[DataRequired()])
+    remove_video = SubmitField('Remove Video')
 
 class CourseCreationForm(FlaskForm):
     title = StringField('Course Title', validators=[DataRequired(), Length(min=5, max=100)])
@@ -133,11 +138,16 @@ class CourseCreationForm(FlaskForm):
     price = DecimalField('Price (#)', validators=[DataRequired(), NumberRange(min=0.01)])
     image = FileField('Course Image', validators=[FileRequired()])
     category = SelectField('Category', coerce=int, validators=[DataRequired()])
+    # FieldList and FormField to handle multiple videos
+    videos = FieldList(FormField(VideoForm), min_entries=1)
+    add_video = SubmitField('Add Video')
     submit = SubmitField('Create Course')
 
 class CategoryCreationForm(FlaskForm):
     name = StringField('Category Name', validators=[DataRequired()])
     submit = SubmitField('Create Category')
+
+
 
 
 # Route for the home page
@@ -280,6 +290,8 @@ def create_category():
     return render_template('create_category.html', form=form)
 
 # Create course route
+# Set the UPLOAD_FOLDER
+app.config['UPLOAD_FOLDER'] = 'static'
 # Define allowed images extensions
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
 @app.route('/create_course', methods=['GET', 'POST'])
@@ -290,6 +302,7 @@ def create_course():
         return redirect(url_for('dashboard'))
     
     form = CourseCreationForm()
+    video_form = VideoForm()
 
     # Fetch categories from the database
     categories = CategoryTag.query.all()
@@ -299,12 +312,16 @@ def create_course():
     if form.validate_on_submit():
         # Handle image upload
         image = form.image.data
+        filename = None # Initialize filename
+
         if image:
-            filename = secure_filename(image.filename)
+            # filename = secure_filename(image.filename)
             
             # Check if the file extension is allowed
-            if '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS:
-                image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'course-images', filename)
+            # if '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS:
+            if '.' in image.filename and image.filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS:
+                filename = secure_filename(image.filename)
+                image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 image.save(image_path)
             else:
                 flash('Invalid image file format. Allowed formats: jpg, jpeg, png, gif', 'danger')
@@ -316,20 +333,88 @@ def create_course():
             description=form.description.data,
             instructor_id=current_user.id,
             price=form.price.data,
-            image_filename=filename if image else None  # Store the filename in the Course model
+            image_filename=filename # if image else None  # Store the filename in the Course model
         )
+
+        # Iterate through the videos and add them to the course
+        for video_form in form.videos:
+            video_id = extract_youtube_video_id(video_form.youtube_url.data)
+            if video_id:
+                new_video =Video(
+                    title=video_form.title.data,
+                    description=video_form.description.data,
+                    youtube_video_id=video_id,
+                )
+                new_course.videos.append(new_video)
         db.session.add(new_course)
         db.session.commit()
         flash('Course created successfully.', 'success')
         return redirect(url_for('dashboard'))
 
-    return render_template('create_course.html', form=form)
+    return render_template('create_course.html', form=form, video_form=video_form)
 
 
-# Route view all courses
+# Define route for course to view all courses
 @app.route('/courses')
 def courses():
-    return render_template('courses.html')
+    course_list = Course.query.all()
+    return render_template('courses.html',courses=course_list)
+
+@app.route('/courses/<int:course_id>')
+def course_details(course_id):
+    course = Course.query.get(course_id)
+    if not course:
+        flash('Course not found.', 'danger')
+        return redirect(url_for('courses'))
+    return render_template('course_details.html', course=course)
+
+# Store the YouTube video ID instead of the video URL
+# Extract the video ID from a YouTube URL
+def extract_youtube_video_id(url):
+    # Extract the _video ID from a YouTube URL
+    video_id = None
+    if 'youtube.com/watch' in url:
+        video_id = url.split('v=')[1]
+        ampersand_pos = video_id.find('&')
+        if ampersand_pos != -1:
+            video_id = video_id[:ampersand_pos]
+    elif 'youtu.be/' in url:
+        video_id = url.split('youtu.be/')[1]
+    return video_id
+
+# Video Upload (For Instructors)
+@app.route('/upload_video/<int:course_id>',methods=['GET', 'POST'])
+@login_required
+def upload_video(course_id):
+    # Check if the user is an instructor and the course belongs to them
+    course = Course.query.get(course_id)
+    if not course or course.instructor_id != current_user.id:
+        flash('You do not have the permission to upload videos for this course', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        video_url = request.form.get('video_url')
+
+        # validate the youtube URL
+        if not video_url:
+            flash('Video URL is not required.', 'danger')
+        else:
+            video_id = extract_youtube_video_id(video_url)
+            if not video_id:
+                flash('Invalid YouTube URL.', 'danger')
+            else:
+                # Store the YouTube video ID in the database
+                new_video = Video(
+                    title=request.form.get('title'),
+                    description=request.form.get('description'),
+                    youtube_video_id=video_id,
+                    course_id=course_id
+                )
+                db.session.add(new_video)
+                db.session.commit()
+                flash('Video uploaded successfully.', 'success')
+                return redirect(url_for('course_details', course_id=course_id))
+    return render_template('upload_video.html', course=course)
 
 
 
